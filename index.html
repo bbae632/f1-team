@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="manifest.webmanifest">
+<title>F1 8인 팀전</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f3f4f6;color:#111827}
+.app{max-width:520px;margin:auto;min-height:100vh;background:#fff}
+header{background:#111827;color:#fff;padding:18px 16px 14px;position:sticky;top:0;z-index:5}
+h1{font-size:22px;margin:0 0 4px}.sub{font-size:12px;opacity:.7}
+nav{display:flex;background:#fff;border-bottom:1px solid #e5e7eb;position:sticky;top:71px;z-index:4}
+nav button{flex:1;padding:13px 4px;border:0;background:none;font-weight:700;color:#6b7280}
+nav button.active{color:#111827;border-bottom:3px solid #111827}
+main{padding:14px 14px 90px}.screen{display:none}.screen.active{display:block}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 12px}.row{display:flex;gap:8px;align-items:center}
+input,select{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:9px;font-size:15px;background:#fff}
+button.primary{width:100%;border:0;border-radius:10px;background:#111827;color:#fff;padding:13px;font-weight:700;font-size:15px}
+button.secondary{border:1px solid #d1d5db;border-radius:9px;background:#fff;padding:10px;font-weight:600}
+.player{display:grid;grid-template-columns:28px 1fr 72px 58px;gap:7px;align-items:center;margin:7px 0}
+.num{font-weight:800;text-align:center}.team{font-size:12px;font-weight:800;text-align:center;padding:6px 2px;border-radius:7px;background:#e5e7eb}
+.teamA{background:#dbeafe}.teamB{background:#fee2e2}
+.races{display:flex;gap:6px;overflow:auto;margin-bottom:12px}.races button{white-space:nowrap;border:1px solid #d1d5db;background:#fff;border-radius:8px;padding:8px 12px;font-weight:700}.races button.active{background:#111827;color:#fff}
+.rankrow{display:grid;grid-template-columns:28px 1fr 62px 36px;gap:7px;align-items:center;margin:7px 0}.rankrow .name{font-weight:600}.rankrow input{text-align:center}.rankrow input.invalid{border-color:#dc2626}
+.check{width:20px;height:20px}.teambox{display:grid;grid-template-columns:1fr 1fr;gap:10px}.teamcard{border-radius:12px;padding:12px}.teamcard.a{background:#eff6ff}.teamcard.b{background:#fef2f2}.teamcard h3{margin:0 0 8px}.score{font-size:28px;font-weight:900}.memberline{display:flex;justify-content:space-between;font-size:13px;padding:4px 0}
+.leader{font-weight:900;font-size:18px;margin-top:8px}.muted{color:#6b7280;font-size:12px}.danger{color:#dc2626}.gap{font-size:13px;color:#6b7280}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 5px;border-bottom:1px solid #eee;text-align:center}th:first-child,td:first-child{text-align:left}
+.notice{background:#f9fafb;border-radius:10px;padding:10px;font-size:12px;color:#4b5563;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="app">
+<header><h1>🏎️ F1 8인 팀전</h1><div class="sub">연습 → 팀 배정 → 5 Race → 실시간 점수</div></header>
+<nav>
+<button data-tab="practice" class="active">연습</button>
+<button data-tab="race">레이스</button>
+<button data-tab="board">점수판</button>
+</nav>
+<main>
+<section id="practice" class="screen active">
+<div class="card"><h2>① 선수 이름 & 연습 순위</h2><div id="players"></div>
+<button class="primary" onclick="savePractice()">연습게임 결과 저장 / 팀 확정</button></div>
+<div class="card"><h2>팀 구성</h2><div id="teams"></div></div>
+<div class="notice">연습 순위 기준 자동 배정: 1·4·5·8위 → A팀 / 2·3·6·7위 → B팀</div>
+</section>
+
+<section id="race" class="screen">
+<div class="races" id="raceTabs"></div>
+<div class="card"><h2 id="raceTitle">Race 1</h2><div id="raceRows"></div>
+<div class="row" style="margin-top:12px"><label style="display:flex;align-items:center;gap:7px;font-size:13px"><input id="fl" class="check" type="checkbox"> Fastest Lap +1</label></div>
+<button class="primary" style="margin-top:12px" onclick="saveRace()">이 레이스 저장</button>
+</div>
+<div class="notice">F1 포인트: 25 / 18 / 15 / 12 / 10 / 8 / 6 / 4점</div>
+</section>
+
+<section id="board" class="screen">
+<div class="teambox" id="teamScores"></div>
+<div class="card" style="margin-top:12px"><div id="leader"></div></div>
+<div class="card"><h2>개인 누적</h2><table><thead><tr><th>선수</th><th>팀</th><th>점수</th></tr></thead><tbody id="individual"></tbody></table></div>
+<div class="card"><h2>레이스별 팀 점수</h2><table><thead><tr><th>Race</th><th>A팀</th><th>B팀</th></tr></thead><tbody id="raceTable"></tbody></table></div>
+<div class="row"><button class="secondary" style="flex:1" onclick="resetAll()">전체 초기화</button></div>
+</section>
+</main>
+</div>
+<script>
+const pts=[25,18,15,12,10,8,6,4];
+let state=JSON.parse(localStorage.getItem('f1team')||'null')||{
+ players:Array.from({length:8},(_,i)=>({name:'선수 '+(i+1),rank:'',team:'',races:Array(5).fill(null)})),
+ currentRace:0
+};
+function persist(){localStorage.setItem('f1team',JSON.stringify(state));}
+function teamForRank(r){r=Number(r);return [1,4,5,8].includes(r)?'A':([2,3,6,7].includes(r)?'B':'');}
+function renderPlayers(){
+ const el=document.getElementById('players');
+ el.innerHTML=state.players.map((p,i)=>`<div class="player">
+ <div class="num">${i+1}</div><input value="${esc(p.name)}" onchange="state.players[${i}].name=this.value;persist()">
+ <input type="number" min="1" max="8" placeholder="순위" value="${p.rank}" onchange="state.players[${i}].rank=this.value;state.players[${i}].team=teamForRank(this.value);persist();renderPractice()">
+ <div class="team ${p.team==='A'?'teamA':p.team==='B'?'teamB':''}">${p.team||'-'}</div></div>`).join('');
+}
+function renderPractice(){renderPlayers();document.getElementById('teams').innerHTML=`
+<div class="teambox"><div class="teamcard a"><h3>🔵 A팀</h3>${state.players.filter(p=>p.team==='A').map(p=>`<div>${esc(p.name)} <span class="muted">(${p.rank}위)</span></div>`).join('')||'<div class="muted">미정</div>'}</div>
+<div class="teamcard b"><h3>🔴 B팀</h3>${state.players.filter(p=>p.team==='B').map(p=>`<div>${esc(p.name)} <span class="muted">(${p.rank}위)</span></div>`).join('')||'<div class="muted">미정</div>'}</div></div>`}
+function savePractice(){
+ let ranks=state.players.map(p=>Number(p.rank)); let names=state.players.map(p=>p.name.trim());
+ if(names.some(n=>!n)||ranks.some(r=>!r)||new Set(ranks).size!==8||ranks.some(r=>r<1||r>8)){alert('이름과 1~8위 순위를 중복 없이 입력해주세요.');return}
+ state.players.forEach(p=>p.team=teamForRank(p.rank));persist();renderAll();document.querySelector('[data-tab="race"]').click();alert('팀이 확정됐습니다!');
+}
+function renderRaceTabs(){document.getElementById('raceTabs').innerHTML=Array.from({length:5},(_,i)=>`<button class="${i===state.currentRace?'active':''}" onclick="state.currentRace=${i};persist();renderRace()">${i+1}R</button>`).join('')}
+function renderRace(){
+ renderRaceTabs();let r=state.currentRace;document.getElementById('raceTitle').textContent=`Race ${r+1}`;
+ let data=state.players.map((p,i)=>p.races[r]||{rank:'',fl:false});
+ document.getElementById('raceRows').innerHTML=state.players.map((p,i)=>`<div class="rankrow">
+ <div class="num">${i+1}</div><div class="name">${esc(p.name)} <span class="muted">${p.team||''}</span></div>
+ <input id="rr${i}" type="number" min="1" max="8" placeholder="순위" value="${data[i].rank||''}">
+ <input id="rf${i}" class="check" type="checkbox" ${data[i].fl?'checked':''} title="FL">
+ </div>`).join('');
+}
+function saveRace(){
+ let r=state.currentRace, ranks=state.players.map((_,i)=>Number(document.getElementById('rr'+i).value));
+ if(ranks.some(x=>x<1||x>8)||new Set(ranks).size!==8){alert('1~8위가 각각 한 번씩 입력되어야 합니다.');return}
+ state.players.forEach((p,i)=>p.races[r]={rank:ranks[i],fl:document.getElementById('rf'+i).checked});
+ persist();renderBoard();alert(`Race ${r+1} 저장 완료!`);
+}
+function pointsFor(p,r){let x=p.races[r];if(!x||!x.rank)return 0;return (pts[x.rank-1]||0)+(x.fl?1:0)}
+function total(p){return Array.from({length:5},(_,r)=>pointsFor(p,r)).reduce((a,b)=>a+b,0)}
+function teamTotal(t){return state.players.filter(p=>p.team===t).reduce((s,p)=>s+total(p),0)}
+function renderBoard(){
+ let a=teamTotal('A'),b=teamTotal('B');
+ document.getElementById('teamScores').innerHTML=`<div class="teamcard a"><h3>🔵 A팀</h3><div class="score">${a}</div><div>점</div></div><div class="teamcard b"><h3>🔴 B팀</h3><div class="score">${b}</div><div>점</div></div>`;
+ document.getElementById('leader').innerHTML=`<div class="leader">${a===b?'현재 동점':a>b?'🔵 A팀 리드':'🔴 B팀 리드'}</div><div class="gap">점수 차이 ${Math.abs(a-b)}점</div>`;
+ document.getElementById('individual').innerHTML=state.players.slice().sort((x,y)=>total(y)-total(x)).map(p=>`<tr><td>${esc(p.name)}</td><td>${p.team||'-'}</td><td><b>${total(p)}</b></td></tr>`).join('');
+ document.getElementById('raceTable').innerHTML=Array.from({length:5},(_,r)=>`<tr><td>R${r+1}</td><td>${state.players.filter(p=>p.team==='A').reduce((s,p)=>s+pointsFor(p,r),0)}</td><td>${state.players.filter(p=>p.team==='B').reduce((s,p)=>s+pointsFor(p,r),0)}</td></tr>`).join('');
+}
+function resetAll(){if(confirm('모든 기록을 초기화할까요?')){localStorage.removeItem('f1team');location.reload()}}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.tab).classList.add('active');if(b.dataset.tab==='practice')renderPractice();if(b.dataset.tab==='race')renderRace();if(b.dataset.tab==='board')renderBoard()});
+function renderAll(){renderPractice();renderRace();renderBoard()}
+renderAll();
+</script>
+</body></html>
