@@ -136,8 +136,11 @@ async function savePractice(finish=false){
     roomData=fake;
 
     if(finish){
+      // Firebase update()에서는 players 전체 경로와 players/0/team 같은 하위 경로를
+      // 동시에 업데이트할 수 없으므로, 팀 배정까지 반영한 players 배열을 한 번에 저장한다.
       let rank=finalPracticeRanking();
-      rank.forEach((q,i)=>{upd[`players/${q.i}/team`]=teamForRank(i+1);});
+      rank.forEach((q,i)=>{p[q.i]={...p[q.i],team:teamForRank(i+1)};});
+      upd.players=p;
       upd.practiceFinished=true;
     }
 
