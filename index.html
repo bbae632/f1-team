@@ -114,7 +114,57 @@ async function presetNames(){
 }
 
 async function create(){let id=Math.random().toString(36).slice(2,8).toUpperCase();while((await get(ref(db,'rooms/'+id))).exists())id=Math.random().toString(36).slice(2,8).toUpperCase();let m=mode,c=Number($('practiceCount').value);await set(ref(db,'rooms/'+id),{hostUid:uid,mode:m,practiceCount:c,players:empty(),practice:{},races:{},gameFinished:false,createdAt:Date.now()});enter(id)}
-async function savePractice(finish=false){if(!isHost||roomData?.practiceFinished)return;let p=players().map((x,i)=>({...x,name:document.querySelector(`[data-pn="${i}"]`)?.value.trim()||x.name}));let upd={players:p};let completed=0;for(let g=0;g<practiceGames();g++){let ranks={};for(let i=0;i<8;i++)ranks[i]=Number(document.querySelector(`[data-pr="${g}-${i}"]`)?.value)||'';let vals=Object.values(ranks);let hasAny=vals.some(x=>x>=1&&x<=8);if(hasAny&&(vals.some(x=>x<1||x>8)||new Set(vals).size!==8))return alert(`연습 ${g+1}의 1~8위를 중복 없이 모두 입력해주세요.`);if(vals.every(x=>x>=1&&x<=8)&&new Set(vals).size===8){upd[`practice/${g}/ranks`]=ranks;completed++}}if(!completed)return alert('최소 1개의 연습경기 결과를 입력해주세요.');if(!finish&&completed<practiceGames()){}let fake={...roomData,players:p,practice:{...(roomData.practice||{})}};for(let g=0;g<practiceGames();g++)if(upd[`practice/${g}/ranks`])fake.practice[g]={ranks:upd[`practice/${g}/ranks`]};roomData=fake;if(finish){let rank=finalPracticeRanking();rank.forEach((q,i)=>{upd[`players/${q.i}/team`]=teamForRank(i+1)});upd.practiceFinished=true;}await update(ref(db,'rooms/'+roomId),upd);let fresh=await get(ref(db,'rooms/'+roomId));if(fresh.exists()){roomData=fresh.val();mode=roomData.mode||'2x4';isHost=roomData.hostUid===uid}render()}
+async function savePractice(finish=false){
+  if(!isHost||roomData?.practiceFinished)return;
+  try{
+    let p=players().map((x,i)=>({...x,name:document.querySelector(`[data-pn="${i}"]`)?.value.trim()||x.name}));
+    let upd={players:p};
+    let completed=0;
+    for(let g=0;g<practiceGames();g++){
+      let ranks={};
+      for(let i=0;i<8;i++) ranks[i]=Number(document.querySelector(`[data-pr="${g}-${i}"]`)?.value)||'';
+      let vals=Object.values(ranks);
+      let hasAny=vals.some(x=>x>=1&&x<=8);
+      if(hasAny&&(vals.some(x=>x<1||x>8)||new Set(vals).size!==8)) return alert(`연습 ${g+1}의 1~8위를 중복 없이 모두 입력해주세요.`);
+      if(vals.every(x=>x>=1&&x<=8)&&new Set(vals).size===8){upd[`practice/${g}/ranks`]=ranks;completed++;}
+    }
+    if(!completed)return alert('최소 1개의 연습경기 결과를 입력해주세요.');
+
+    // 현재 입력값을 먼저 로컬 상태에 반영한 뒤 최종 순위를 계산한다.
+    let fake={...roomData,players:p,practice:{...(roomData.practice||{})}};
+    for(let g=0;g<practiceGames();g++) if(upd[`practice/${g}/ranks`]) fake.practice[g]={ranks:upd[`practice/${g}/ranks`]};
+    roomData=fake;
+
+    if(finish){
+      let rank=finalPracticeRanking();
+      rank.forEach((q,i)=>{upd[`players/${q.i}/team`]=teamForRank(i+1);});
+      upd.practiceFinished=true;
+    }
+
+    await update(ref(db,'rooms/'+roomId),upd);
+    let fresh=await get(ref(db,'rooms/'+roomId));
+    if(!fresh.exists()) throw new Error('방 데이터를 다시 불러오지 못했습니다.');
+    roomData=fresh.val();
+    mode=roomData.mode||'2x4';
+    isHost=roomData.hostUid===uid;
+    render();
+    if(finish){
+      // 연습 종료 후 결과 화면으로 확실히 전환
+      document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(x=>x.classList.add('hidden'));
+      const practiceTab=document.querySelector('[data-tab="practice"]');
+      if(practiceTab){practiceTab.classList.remove('hidden');practiceTab.classList.add('active');}
+      $('practice').classList.remove('hidden');
+      $('practiceInputCard').classList.add('hidden');
+      $('practiceTeamCard').classList.add('hidden');
+      $('practiceResultCard').classList.remove('hidden');
+      $('practiceResultCard').scrollIntoView({behavior:'smooth',block:'start'});
+    }
+  }catch(e){
+    console.error(e);
+    alert('연습 종료 처리 중 오류가 발생했습니다.\n'+(e?.message||e));
+  }
+}
 async function saveRace(finish=false){if(!isHost)return;let currentPlayers=players();let ins=[...document.querySelectorAll('[data-rr]')],nums=ins.map(x=>+x.value);if(finish&&(nums.some(n=>n<1||n>8)||new Set(nums).size!==8))return alert('1~8위를 중복 없이 모두 입력해주세요.');let ranks={};ins.forEach((x,i)=>{if(x.value)ranks[i]=+x.value});await update(ref(db,`rooms/${roomId}`),{players:currentPlayers,[`races/${selected}`]:{ranks,fastestLap:$('fastestLap').checked,finished:finish,finishedAt:finish?Date.now():null}});let fresh=await get(ref(db,'rooms/'+roomId));if(fresh.exists()){roomData=fresh.val();isHost=roomData.hostUid===uid;mode=roomData.mode||'2x4'}if(finish&&selected<4){selected++;renderRace();renderBoard()}else if(finish){$('board').classList.remove('hidden');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelector('[data-tab="board"]').classList.add('active');renderBoard()}else{renderRace();renderBoard()}}
 async function reopen(){if(!isHost)return;await update(ref(db,`rooms/${roomId}/races/${selected}`),{finished:false})}
 async function endGame(){if(!isHost)return;let n=[0,1,2,3,4].filter(i=>roomData?.races?.[i]?.finished).length;if(!n)return alert('최소 1개 레이스를 먼저 종료해주세요.');if(!confirm(`현재 ${n}개 레이스 결과로 경기를 종료할까요?`))return;await update(ref(db,'rooms/'+roomId),{gameFinished:true,gameFinishedAt:Date.now()});$('board').classList.remove('hidden');renderBoard()}
